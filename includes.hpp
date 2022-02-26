@@ -1,9 +1,8 @@
 #pragma once
 #ifndef INCLUDES
 #define INCLUDES
+#include <Windows.h>
+#include <wininet.h>
 #include <string>
-#include <sstream>
-#include <boost/json.hpp>
-#include <iostream>
-#include <urlmon.h>
+#include <vector>
 #endif

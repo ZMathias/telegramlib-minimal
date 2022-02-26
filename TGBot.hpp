@@ -5,7 +5,7 @@ class TGBot
 {
 	struct tg_message
 	{
-		uint64_t update_id{0}, chat_id{0}, date{0};
+		uint64_t update_id, chat_id, date;
 		std::string username;
 		std::string text;
 	};
@@ -23,7 +23,7 @@ class TGBot
 
 	static void parseUntil(const std::string_view&, std::string&, std::string_view&&, const size_t& offset = 0, const char& separator = ',');
 
-	void clearMessageQueue();
+	void clearMessageQueue() const;
 
 public:
 	explicit TGBot(const std::string& token)
@@ -34,6 +34,6 @@ public:
 
 	[[nodiscard]] std::vector<TGBot::tg_message> getUpdates();
 
-	void sendMessage(const unsigned int&, const std::string&);
+	void sendMessage(const uint64_t&, const std::string&) const;
 };
 

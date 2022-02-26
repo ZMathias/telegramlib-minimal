@@ -2,28 +2,23 @@
 
 std::string TGBot::makeUrlQuery(const std::string& queryUrl)
 {
-    std::wstringstream ss;
-    ss << queryUrl.c_str();
-	IStream* stream;
-    const HRESULT result = URLOpenBlockingStream(nullptr, ss.str().c_str(), &stream, 0, nullptr);
-
-    if (result != 0)
+	const HINTERNET handle = InternetOpenA("HTTPS", INTERNET_OPEN_TYPE_PRECONFIG, nullptr, nullptr, 0);
+    if (handle == NULL)
     {
         return {};
     }
-
-    char buffer[100]{};
+	const HINTERNET file_handle = InternetOpenUrlA(handle, queryUrl.c_str(), nullptr, 0, INTERNET_FLAG_RESYNCHRONIZE, 0);
+    char buffer[1000]{};
     unsigned long bytesRead{};
-    std::stringstream sss{};
-    stream->Read(buffer, 100, &bytesRead);
-    while (bytesRead > 0U)
+    std::string s{};
+    do
     {
-        sss.write(buffer, bytesRead);
-        stream->Read(buffer, 100, &bytesRead);
-    }
+        s.append(buffer);
+		InternetReadFile(file_handle, buffer, 1000, &bytesRead);
+    } while (bytesRead > 0U);
 
-    stream->Release();
-    return sss.str();
+    InternetCloseHandle(handle);
+    return s;
 }
 
 void TGBot::parseUntil(const std::string_view& str, std::string& output, std::string_view&& end_token, const size_t& offset, const char& separator)
@@ -61,7 +56,7 @@ std::vector<TGBot::tg_message> TGBot::getUpdates()
 {
 	const std::string str(makeUrlQuery(urlQueryString + "getUpdates"));
 	std::vector<TGBot::tg_message> messages;
-	if (str != "{\"ok\":true,\"result\":[]}")
+	if (str != R"({"ok":true,"result":[]})" && !str.empty())
 	{
 		unsigned int level{};
 		for (size_t start_index{}, i = 0; i < str.length(); ++i)
@@ -87,12 +82,12 @@ std::vector<TGBot::tg_message> TGBot::getUpdates()
 	return messages;
 }
 
-void TGBot::sendMessage(const unsigned int& chat_id, const std::string& msg)
+void TGBot::sendMessage(const uint64_t& chat_id, const std::string& msg) const
 {
     makeUrlQuery(urlQueryString + "sendMessage?chat_id=" + std::to_string(chat_id) + "&text=" + msg);
 }
 
-void TGBot::clearMessageQueue()
+void TGBot::clearMessageQueue() const
 {
 	makeUrlQuery(urlQueryString + "getUpdates?offset=" + std::to_string(last_update_id+1));
 }

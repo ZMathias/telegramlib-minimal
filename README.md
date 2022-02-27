@@ -1,5 +1,6 @@
-**THIS PROJECT IS IN IT'S EARLY STAGES
-Don't expect a lot of functionality for the time being**
+**THIS PROJECT IS IN IT'S EARLY STAGES**
+
+**Don't expect a lot of functionality for the time being**
 
 A very minimal, fast and compact Telegram Bot library.
 
@@ -8,7 +9,8 @@ A very minimal, fast and compact Telegram Bot library.
 * reliable
 * based on C++20
 * header-only
-* only 23kb executable size
+* only adds 23kb when compiled into a project
+* dynamic or static linking
 * low memory consumption
 * dependency free (only relies on WinInet)
 

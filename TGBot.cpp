@@ -8,13 +8,31 @@ std::string TGBot::makeUrlQuery(const std::string& queryUrl)
         return {};
     }
 	const HINTERNET file_handle = InternetOpenUrlA(handle, queryUrl.c_str(), nullptr, 0, INTERNET_FLAG_RESYNCHRONIZE, 0);
+
+	if (file_handle == nullptr)
+	{
+#ifdef _DEBUG 
+		printf("InternetOpenUrlA error: %lu", GetLastError());
+#endif
+
+		return {};
+	}
+
     char buffer[1000]{};
     unsigned long bytesRead{};
     std::string s{};
     do
     {
         s.append(buffer);
-		InternetReadFile(file_handle, buffer, 1000, &bytesRead);
+		if (!InternetReadFile(file_handle, buffer, 1000, &bytesRead))
+		{
+#ifdef _DEBUG
+			internet_error = true;
+			printf("InternetReadFile error: %lu", GetLastError());
+			return {};
+#endif
+		}
+		internet_error = false;
     } while (bytesRead > 0U);
 
     InternetCloseHandle(handle);
@@ -76,6 +94,15 @@ std::vector<TGBot::tg_message> TGBot::getUpdates()
 			}
 
 		}
+		if (level != 0)
+		{
+			parse_error = true;
+#ifdef _DEBUG
+			printf("error while parsing json: the json is invalid");
+#endif
+			return {};
+		}
+		parse_error = false;
 		last_update_id  = messages[messages.size()-1].update_id;
 		clearMessageQueue();
 	}

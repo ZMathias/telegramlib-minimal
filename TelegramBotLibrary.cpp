@@ -1,10 +1,7 @@
 #include "includes.hpp"
 #include "TGBot.hpp"
 
-int WINAPI WinMain(HINSTANCE hInstance,
-				   HINSTANCE hPrevInstance,
-				   LPSTR     lpCmdLine,
-				   int       nShowCmd)
+int main()
 {
 	TGBot tgbot("5088914784:AAG5t6oR17RO4UVp1qpUi_clnFF2W-z-iic");
 	while (true)

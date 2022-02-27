@@ -17,11 +17,11 @@ class TGBot
 	};
 
 
-	uint64_t last_update_id{0};
+	uint64_t lastUpdateId{0};
 
 	std::string urlQueryString{"https://api.telegram.org/bot"};
 
-	std::string token;
+	std::string api_token;
 
 	static std::string makeUrlQuery(const std::string&);
 
@@ -37,7 +37,7 @@ public:
 	inline static bool internet_error{false}, parse_error{false};
 
 	explicit TGBot(const std::string& token)
-		: token(token)
+		: api_token(token)
 	{
 		urlQueryString += token + "/";
 	}

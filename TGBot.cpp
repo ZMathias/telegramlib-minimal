@@ -1,16 +1,17 @@
 #include "TGBot.hpp"
 
-std::string TGBot::makeUrlQuery(const std::string& queryUrl)
+std::string TGBot::makeUrlQuery(const std::string& query_url)
 {
 	const HINTERNET handle = InternetOpenA("HTTPS", INTERNET_OPEN_TYPE_PRECONFIG, nullptr, nullptr, 0);
     if (handle == nullptr)
     {
         return {};
     }
-	const HINTERNET file_handle = InternetOpenUrlA(handle, queryUrl.c_str(), nullptr, 0, INTERNET_FLAG_RESYNCHRONIZE, 0);
+	const HINTERNET file_handle = InternetOpenUrlA(handle, query_url.c_str(), nullptr, 0, INTERNET_FLAG_RESYNCHRONIZE, 0);
 
 	if (file_handle == nullptr)
 	{
+		internet_error = true;
 #ifdef _DEBUG 
 		printf("InternetOpenUrlA error: %lu", GetLastError());
 #endif
@@ -19,29 +20,29 @@ std::string TGBot::makeUrlQuery(const std::string& queryUrl)
 	}
 
     char buffer[1000]{};
-    unsigned long bytesRead{};
+    unsigned long bytes_read{};
     std::string s{};
     do
     {
         s.append(buffer);
-		if (!InternetReadFile(file_handle, buffer, 1000, &bytesRead))
+		if (!InternetReadFile(file_handle, buffer, 1000, &bytes_read))
 		{
-#ifdef _DEBUG
 			internet_error = true;
+#ifdef _DEBUG
 			printf("InternetReadFile error: %lu", GetLastError());
 			return {};
 #endif
 		}
 		internet_error = false;
-    } while (bytesRead > 0U);
+    } while (bytes_read > 0U);
 
     InternetCloseHandle(handle);
     return s;
 }
 
-void TGBot::parseUntil(const std::string_view& str, std::string& output, std::string_view&& end_token, const size_t& offset, const char& separator)
+void TGBot::parseUntil(const std::string_view& str, std::string& output, std::string_view&& token, const size_t& offset, const char& separator)
 {
-	const auto pos = str.find(end_token);
+	const auto pos = str.find(token);
 	for (size_t i = pos + offset; i < str.length(); ++i)
 	{
 		if (str[i] == separator) break;
@@ -51,7 +52,6 @@ void TGBot::parseUntil(const std::string_view& str, std::string& output, std::st
 
 TGBot::tg_message TGBot::parseMessageObject(const std::string_view& str)
 {
-	std::string slave;
 	tg_message message;
 	std::string update_id, chat_id, date;
 
@@ -103,7 +103,7 @@ std::vector<TGBot::tg_message> TGBot::getUpdates()
 			return {};
 		}
 		parse_error = false;
-		last_update_id  = messages[messages.size()-1].update_id;
+		lastUpdateId  = messages[messages.size()-1].update_id;
 		clearMessageQueue();
 	}
 	return messages;
@@ -116,6 +116,6 @@ void TGBot::sendMessage(const uint64_t& chat_id, const std::string& msg) const
 
 void TGBot::clearMessageQueue() const
 {
-	makeUrlQuery(urlQueryString + "getUpdates?offset=" + std::to_string(last_update_id+1));
+	makeUrlQuery(urlQueryString + "getUpdates?offset=" + std::to_string(lastUpdateId+1));
 }
 

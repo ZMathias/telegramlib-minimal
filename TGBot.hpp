@@ -5,7 +5,7 @@ class TGBot
 {
 	struct tg_message
 	{
-		uint64_t update_id, chat_id, date;
+		uint64_t update_id{}, chat_id{}, date{};
 		std::string username;
 		std::string text;
 	};

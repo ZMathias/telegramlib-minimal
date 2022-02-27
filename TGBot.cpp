@@ -3,7 +3,7 @@
 std::string TGBot::makeUrlQuery(const std::string& queryUrl)
 {
 	const HINTERNET handle = InternetOpenA("HTTPS", INTERNET_OPEN_TYPE_PRECONFIG, nullptr, nullptr, 0);
-    if (handle == NULL)
+    if (handle == nullptr)
     {
         return {};
     }

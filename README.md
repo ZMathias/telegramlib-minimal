@@ -10,7 +10,6 @@ A very minimal, fast and compact Telegram Bot library.
 * based on C++20
 * header-only
 * only adds 23kb when compiled into a project
-* dynamic or static linking
 * low memory consumption
 * dependency free (only relies on WinInet)
 

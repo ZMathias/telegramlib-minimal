@@ -1,45 +1,97 @@
+// This is an independent project of an individual developer. Dear PVS-Studio, please check it.
+// PVS-Studio Static Code Analyzer for C, C++, C#, and Java: https://pvs-studio.com
+
 #include "TGBot.hpp"
 
-std::string TGBot::makeUrlQuery(const std::string& query_url)
+#include <stdexcept>
+
+std::string TGBot::makeQuery(const std::string& apiMethod, const std::string& verb, const char* content_type, const std::string& parameters)
 {
-	const HINTERNET handle = InternetOpenA("HTTPS", INTERNET_OPEN_TYPE_PRECONFIG, nullptr, nullptr, 0);
-    if (handle == nullptr)
-    {
-        return {};
-    }
-	const HINTERNET file_handle = InternetOpenUrlA(handle, query_url.c_str(), nullptr, 0, INTERNET_FLAG_RESYNCHRONIZE, 0);
+	const char* accept[] = { "*/*", nullptr };
 
-	if (file_handle == nullptr)
+	// we assemble the rest of the url with parameters based on the verb
+	// techically we could just use a GET request for everything
+	// and encode every parameter in the url, but this is more
+	// flexible and allows us to use POST requests for some methods
+	// like uploading files
+	// we do it like this because the telegram api doesn't accept x-www-form-urlencoded
+	// in a GET request, only POST
+	std::string finalObjectName = objectName + apiMethod;
+
+	if (verb == "GET" && !parameters.empty()) {
+		finalObjectName += "?" + parameters;
+	}
+
+	// HTTPS is required for the telegram api
+	// otherwise it just returns 403 bad request and doesn't tell you otherwise
+	const HINTERNET open_handle = HttpOpenRequestA(
+		m_hConnect,
+		verb.c_str(),
+		finalObjectName.c_str(),
+		"HTTP/1.1",
+		nullptr,
+		accept,
+		INTERNET_FLAG_SECURE | INTERNET_FLAG_NO_CACHE_WRITE | INTERNET_FLAG_RELOAD | INTERNET_FLAG_RESYNCHRONIZE,
+		0
+		);
+
+	if (open_handle == nullptr)
 	{
-		internet_error = true;
-#ifdef _DEBUG 
-		printf("InternetOpenUrlA error: %lu", GetLastError());
-#endif
-
+		DbgPrint("HttpOpenRequestA failed");
 		return {};
 	}
 
-    char buffer[1000]{};
+	BOOL success = false;
+
+	if (verb == "POST")
+	{
+		// pass the optional parameters as the request body in the case of a POST request
+		// we could pass it all the time, but if the body is somehow large we waste bandwidth
+		success = HttpSendRequestA(
+			open_handle,
+			content_type,
+			-1L,
+			const_cast<char*>(parameters.c_str()), // the analyzer complained about C casting, no other point in it
+			parameters.length()
+		);
+	}
+	else
+	{
+		success = HttpSendRequestA(
+			open_handle,
+			content_type,
+			-1L,
+			nullptr,
+			NULL
+		);
+	}
+
+	if (!success)
+	{
+		DbgPrintf("HttpSendRequest failed: %lu\n", GetLastError());
+		return {};
+	}
+
+    char buffer[1024]{};
     unsigned long bytes_read{};
-    std::string s{};
+    std::string response{};
     do
     {
-        s.append(buffer);
-		if (!InternetReadFile(file_handle, buffer, 1000, &bytes_read))
+        response.append(buffer);
+		if (!InternetReadFile(open_handle, buffer, 1024, &bytes_read))
 		{
-			internet_error = true;
-#ifdef _DEBUG
-			printf("InternetReadFile error: %lu", GetLastError());
+			DbgPrintf("InternetReadFile error: %lu", GetLastError());
 			return {};
-#endif
 		}
-		internet_error = false;
     } while (bytes_read > 0U);
 
-    InternetCloseHandle(handle);
-    return s;
+    InternetCloseHandle(open_handle);
+    return response;
 }
 
+// parses the given field until a given separator is found
+// returns the parsed fields' value through the second parameter
+// the default separator is comma
 void TGBot::parseUntil(const std::string_view& str, std::string& output, std::string_view&& token, const size_t& offset, const char& separator)
 {
 	const auto pos = str.find(token);
@@ -50,46 +102,73 @@ void TGBot::parseUntil(const std::string_view& str, std::string& output, std::st
 	}
 }
 
-TGBot::tg_message TGBot::parseMessageObject(const std::string_view& str)
+// does what the name says
+// it parses a singular message json object from the array of
+// message objects from the response into a message struct containing:
+// update_id, chat_id, date, username, and text
+// can be easily modified to parse more fields
+TGBot::tg_message TGBot::parseMessageResponseObject(const std::string_view& str)
 {
 	tg_message message;
 	std::string update_id, chat_id, date;
 
-    parseUntil(str, update_id, "\"update_id\":", std::strlen("\"update_id\":"));
+	constexpr std::string_view update_id_token = R"("update_id":)";
+	parseUntil(str, update_id, update_id_token.data(), update_id_token.length());
     message.update_id = _strtoi64(update_id.c_str(), nullptr, 10);
 
-	parseUntil(str, chat_id, R"("chat":{"id":)", std::strlen(R"("chat":{"id":)"), ',');
+	constexpr std::string_view chat_id_token = R"("chat":{"id":)";
+	parseUntil(str, chat_id, chat_id_token.data(), chat_id_token.length());
 	message.chat_id = _strtoi64(chat_id.c_str(), nullptr, 10);
 
-	parseUntil(str, message.username, "\"username\":", std::strlen("\"username\":") + 1, '\"');
+	constexpr std::string_view username_token = R"("username":)";
+	parseUntil(str, message.username, username_token.data(), username_token.length() + 1, '\"');
 
-	parseUntil(str, date, "\"date\":", std::strlen("\"date\":"));
+	constexpr std::string_view date_token = R"("date":)";
+	parseUntil(str, date, date_token.data(), date_token.length());
 	message.date = _strtoi64(date.c_str(), nullptr, 10);
 
-	parseUntil(str, message.text, R"("text":")", std::strlen("\"text\":") + 1, '"');
+	constexpr std::string_view text_token = R"("text:")";
+	parseUntil(str, message.text, text_token.data(), text_token.length() + 1, '"');
+
     return message;
 }
 
 std::vector<TGBot::tg_message> TGBot::getUpdates()
 {
-	const std::string str(makeUrlQuery(urlQueryString + "getUpdates"));
+	const std::string str = makeGetUpdateRequest();
+
 	std::vector<TGBot::tg_message> messages;
+
+	// unreliable in the sense that if they add even one character it breaks the parsing
 	if (str != R"({"ok":true,"result":[]})" && !str.empty())
 	{
 		unsigned int level{};
 		for (size_t start_index{}, i = 0; i < str.length(); ++i)
 		{
+			// searches for the start index of the second pair of brackets ({})
+			// it is unique to the telegram response to always have the second pair of brackets as a message json body inside of a json object array
+			// {
+			//    ...
+			//    "messages": [
+			//    {message1}, {message2}, ...
+			//    ],
+			//    ...
+			// }
+			// therefore there is no need for a general purpose json parser
 			if (str[i] == '{')
 			{
 				if (level == 1) start_index = i;
 				++level;
 			}
+
 			else if(str[i] == '}') 
 			{
 				--level;
 				if (level == 1) 
 				{
-					messages.push_back(parseMessageObject(str.substr(start_index, i-start_index)));
+					// we now have the starting and ending indexes of a single message object
+					// parse it and put it in a messages vector
+					messages.emplace_back(parseMessageResponseObject(str.substr(start_index, i-start_index)));
 				}
 			}
 
@@ -97,25 +176,94 @@ std::vector<TGBot::tg_message> TGBot::getUpdates()
 		if (level != 0)
 		{
 			parse_error = true;
-#ifdef _DEBUG
-			printf("error while parsing json: the json is invalid");
-#endif
+			DbgPrint("error while parsing json: the json is invalid");
 			return {};
 		}
 		parse_error = false;
+		// we set the last update id, so we can always call the getUpdates method of the api
+		// with a bigger update id offset, so that it clears the messages
+		// there is no other way of deleting the messages serverside, other than them deleting themselves after 24 hours
 		lastUpdateId  = messages[messages.size()-1].update_id;
 		clearMessageQueue();
 	}
 	return messages;
 }
 
-void TGBot::sendMessage(const uint64_t& chat_id, const std::string& msg) const
+// opens a connection to https://www.api.telegram.org/
+// and stores the handle as a member variable
+bool TGBot::connectToBot()
 {
-    makeUrlQuery(urlQueryString + "sendMessage?chat_id=" + std::to_string(chat_id) + "&text=" + msg);
+	m_hOpen= InternetOpenA(
+		DEFAULT_USERAGENT,
+		INTERNET_OPEN_TYPE_PRECONFIG,
+		nullptr, 
+		nullptr, 
+		NULL
+	);
+
+    if (m_hOpen == nullptr) {
+		InternetCloseHandle(m_hConnect);
+		DbgPrint("InternetOpen failed\n");
+	    return false;
+    }
+
+	// HTTPS is required by telegram
+	// https://core.telegram.org/bots/api#making-requests
+	// "All queries to the Telegram Bot API must be served over HTTPS"
+	m_hConnect = InternetConnectA(
+		m_hOpen, 
+		apiAddress.c_str(), 
+		INTERNET_DEFAULT_HTTPS_PORT, 
+		nullptr, 
+		nullptr, 
+		INTERNET_SERVICE_HTTP, 
+		NULL, 
+		NULL
+	);
+	
+	if (m_hConnect == nullptr)
+	{
+		DbgPrintf("InternetOpenUrlA error: %lu", GetLastError());
+		if (m_bThrow) throw std::exception("couldn't connect to telegram servers");
+		return false;
+	}
+
+	// we keep the connection open to avoid the overhead
+	// of opening a new connection for every request
+	return true;
 }
 
-void TGBot::clearMessageQueue() const
+// closes all internet handles and throws on error if allowed
+void TGBot::closeAllConnections() const
 {
-	makeUrlQuery(urlQueryString + "getUpdates?offset=" + std::to_string(lastUpdateId+1));
+	BOOL success{true};
+	success &= InternetCloseHandle(m_hConnect);
+	success &= InternetCloseHandle(m_hOpen);
+	if (!success && m_bThrow)
+	{
+		throw std::exception(("couldn't close HINTERNET connection handle in TGBot.cpp at line: " + std::to_string(__LINE__)).c_str());
+	}
 }
 
+// sends a message through the bot to the chat_id specified
+// unicode is not yet supported
+bool TGBot::sendMessage(const uint64_t& chat_id, const std::string& msg)
+{
+	const auto response = makeQuery("sendMessage", "POST", FORM_URL_ENCODED, "text=" + msg + "&chat_id=" + std::to_string(chat_id));
+	if (response.find("\"ok\":true") == std::string::npos)
+	{
+		DbgPrint("error while sending message");
+		return false;
+	}
+	return true;
+}
+
+void TGBot::clearMessageQueue()
+{
+	makeQuery("getUpdates", "GET", FORM_URL_ENCODED, "offset=" + std::to_string(lastUpdateId+1));
+}
+
+std::string TGBot::makeGetUpdateRequest()
+{
+	return makeQuery("getUpdates", "GET", FORM_URL_ENCODED);
+}

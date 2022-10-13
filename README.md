@@ -1,7 +1,3 @@
-**THIS PROJECT IS IN IT'S EARLY STAGES**
-
-**Don't expect a lot of functionality for the time being**
-
 A very minimal, fast and compact Telegram Bot library.
 
 # Features
@@ -13,11 +9,7 @@ A very minimal, fast and compact Telegram Bot library.
 * low memory consumption
 * dependency free (only relies on WinInet)
 
-Rather than going down the webhook and long-polling rabbithole, this uses the "make a request every couple of seconds" approach.
-Technically it's not as efficient as keeping the connection open until data is received, but a huge upside is, that it:
-* cuts down in complexity and code
-* makes the process a lot more reliable
-* in some cases it's also faster
+Supports long-polling and (more reliable) short-polling.
 
 
 ## Telegram API features
@@ -25,6 +17,6 @@ Technically it's not as efficient as keeping the connection open until data is r
 Already implemented:
 - sending and receiving messages
 
-Planned:
+In development:
 - sending and receiving files
 - sending and receiving pictures

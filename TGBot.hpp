@@ -48,11 +48,10 @@ class TGBot
 
 	std::string makeQuery(const std::string&, const std::string& verb, const char* content_type, const std::string& parameters = "");
 
-	static tg_message parseMessageObject(const std::string_view& str);
+	tg_message parseMessageResponseObject(const std::string_view& str);
 
 
-	static void parseUntil(const std::string_view&, std::string&, std::string_view&&, const size_t& offset = 0,
-	                       const char& separator = ',');
+	void parseFirstOfField(const std::string_view&, std::string&, std::string_view&&);
 
 	void clearMessageQueue();
 	std::string makeGetUpdateRequest();

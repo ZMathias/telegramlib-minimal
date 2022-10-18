@@ -92,10 +92,25 @@ std::string TGBot::makeQuery(const std::string& apiMethod, const std::string& ve
 // parses the given field until a given separator is found
 // returns the parsed fields' value through the second parameter
 // the default separator is comma
-void TGBot::parseUntil(const std::string_view& str, std::string& output, std::string_view&& token, const size_t& offset, const char& separator)
+void TGBot::parseFirstOfField(const std::string_view& str, std::string& output, std::string_view&& token)
 {
+	char separator = ',';
 	const auto pos = str.find(token);
-	for (size_t i = pos + offset; i < str.length(); ++i)
+	if (pos == std::string::npos)
+	{
+		if (m_bThrow) throw std::exception("couldn't parse text field from json");
+		else return;
+	}
+	size_t start = pos + token.length();
+
+	// check if its a string field
+	if (str[start] == '"')
+	{
+		start++;
+		separator = '"';
+	}
+
+	for (size_t i = start; i < str.length(); ++i)
 	{
 		if (str[i] == separator) break;
 		output += str[i];
@@ -109,26 +124,26 @@ void TGBot::parseUntil(const std::string_view& str, std::string& output, std::st
 // can be easily modified to parse more fields
 TGBot::tg_message TGBot::parseMessageResponseObject(const std::string_view& str)
 {
-	tg_message message;
+	tg_message message{};
 	std::string update_id, chat_id, date;
 
 	constexpr std::string_view update_id_token = R"("update_id":)";
-	parseUntil(str, update_id, update_id_token.data(), update_id_token.length());
+	parseFirstOfField(str, update_id, update_id_token.data());
     message.update_id = _strtoi64(update_id.c_str(), nullptr, 10);
 
 	constexpr std::string_view chat_id_token = R"("chat":{"id":)";
-	parseUntil(str, chat_id, chat_id_token.data(), chat_id_token.length());
+	parseFirstOfField(str, chat_id, chat_id_token.data());
 	message.chat_id = _strtoi64(chat_id.c_str(), nullptr, 10);
 
 	constexpr std::string_view username_token = R"("username":)";
-	parseUntil(str, message.username, username_token.data(), username_token.length() + 1, '\"');
+	parseFirstOfField(str, message.username, username_token.data());
 
 	constexpr std::string_view date_token = R"("date":)";
-	parseUntil(str, date, date_token.data(), date_token.length());
+	parseFirstOfField(str, date, date_token.data());
 	message.date = _strtoi64(date.c_str(), nullptr, 10);
 
-	constexpr std::string_view text_token = R"("text:")";
-	parseUntil(str, message.text, text_token.data(), text_token.length() + 1, '"');
+	constexpr std::string_view text_token = R"("text":)";
+	parseFirstOfField(str, message.text, text_token.data());
 
     return message;
 }

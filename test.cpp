@@ -12,8 +12,8 @@ int main()
 	auto messages = bot.getUpdates();
 	for (const auto& [update_id, chat_id, date, username, text] : messages)
 	{
-		printf("%s wrote %s chatid: %llu", username.c_str(), text.c_str(), chat_id);
-		bot.sendMessage(chat_id, "Hello, " + username + "!");
+		printf("%s wrote %s chatid: %llu\n", username.c_str(), text.c_str(), chat_id);
+		bot.sendMessage(chat_id, text);
 	}
 	return 0;
 }
